@@ -1229,6 +1229,12 @@
                   ]
                 },
                 {
+                  "group": "Troubleshooting",
+                  "pages": [
+                    "langsmith/diagnostics-self-hosted"
+                  ]
+                },
+                {
                   "group": "App development",
                   "pages": [
                     {
