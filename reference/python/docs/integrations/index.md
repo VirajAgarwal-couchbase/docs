@@ -1,10 +1,23 @@
 ---
-title: Integrations Overview - LangChain Reference
+title: Integrations overview
 hide:
   - toc
 ---
 
-Welcome! These pages include reference documentation for all `langchain-*` Python packages.
+Welcome! These pages include reference documentation for all `langchain-*` Python integration packages.
+
+To learn more about integrations in LangChain, visit the [Integrations overview](https://docs.langchain.com/oss/python/integrations/providers/overview).
+
+## Model Context Protocol (MCP)
+
+LangChain supports the Model Context Protocol (MCP). This lets external tools work with LangChain and LangGraph applications through a standard interface.
+
+To begin using MCP tools in your project, see the [`langchain-mcp-adapters`](../langchain_mcp_adapters/index.md) documentation.
+
+!!! tip "Why MCP matters"
+    MCP allows LangChain apps to connect easily to tools and workflows outside of LangChain. This improves how well they work together and their reliability.
+
+---
 
 ## Popular providers
 
@@ -32,7 +45,7 @@ Welcome! These pages include reference documentation for all `langchain-*` Pytho
 
     Access Google Gemini models via the Google Gen AI SDK.
 
-    [:octicons-arrow-right-24: Reference](./langchain_google_genai.md)
+    [:octicons-arrow-right-24: Reference](./langchain_google_genai/index.md)
 
 - :simple-googlecloud:{ .lg .middle } __`langchain-google-vertexai`__
 
@@ -40,7 +53,7 @@ Welcome! These pages include reference documentation for all `langchain-*` Pytho
 
     Use Google's Vertex AI model platform.
 
-    [:octicons-arrow-right-24: Reference](./langchain_google_vertexai.md)
+    [:octicons-arrow-right-24: Reference](./langchain_google_vertexai/index.md)
 
 - :material-aws:{ .lg .middle } __`langchain-aws`__
 
@@ -76,7 +89,10 @@ Welcome! These pages include reference documentation for all `langchain-*` Pytho
 
 </div>
 
-All providers are listed in the section navigation (left sidebar).
+Other providers, including `langchain-community`, are listed in the section navigation (left sidebar).
 
-!!! note
-    For integrations not listed on this site, please refer to their respective repositories.
+!!! question ""I don't see the integration I'm looking for""
+    LangChain has hundreds of integrations, but not all are documented on this site. If you don't see the integration you're looking for, refer to their [provider page in the LangChain docs](https://docs.langchain.com/oss/python/integrations/providers/all_providers). Furthermore, many community maintained integrations are available in the [`langchain-community`](./langchain_community/index.md) package.
+
+!!! note "Create new integrations"
+    For information on contributing new integrations, see [the guide](https://docs.langchain.com/oss/python/contributing/integrations-langchain).

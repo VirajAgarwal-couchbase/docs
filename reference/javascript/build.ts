@@ -67,12 +67,6 @@ const SOURCES: Source[] = [
     branch: "main",
   },
   {
-    package: "@langchain/mcp-adapters",
-    path: "libs/providers/langchain-mcp-adapters",
-    repo: "langchain-ai/langchainjs",
-    branch: "main",
-  },
-  {
     package: "@langchain/classic",
     path: "libs/langchain-classic",
     repo: "langchain-ai/langchainjs",
@@ -226,7 +220,7 @@ const SOURCES: Source[] = [
       },
       {
         package: "@langchain/langgraph",
-        path: "libs/langgraph",
+        path: "libs/langgraph-core",
         repo: "langchain-ai/langgraphjs",
         branch: "main",
       },
@@ -432,7 +426,9 @@ function pullRemote(remote: Remote, latestSha: string) {
   const target = remotePath(remote);
   const url = `https://github.com/${remote.repo}/archive/refs/heads/${branch}.tar.gz`;
   console.info(`Fetching remote tarball ${remote.repo}/${branch}`);
-  exec(["rm -rf", target]);
+  if (fs.existsSync(target)) {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
   exec(["mkdir -p", target]);
   exec([`curl -L -s`, url, `| tar -xz --strip-components=1 -C`, target]);
   const shaFile = path.join(target, ".sha");

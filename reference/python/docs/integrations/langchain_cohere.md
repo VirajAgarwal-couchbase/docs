@@ -1,5 +1,5 @@
 ---
-title: Cohere - LangChain Integration Reference
+title: Cohere
 ---
 
 # `langchain-cohere`
@@ -8,4 +8,7 @@ title: Cohere - LangChain Integration Reference
 [![PyPI - License](https://img.shields.io/pypi/l/langchain-cohere)](https://opensource.org/licenses/MIT)
 [![PyPI - Downloads](https://img.shields.io/pepy/dt/langchain-cohere)](https://pypistats.org/packages/langchain-cohere)
 
-This package ref has not yet been migrated to v1.
+!!! warning "Reference docs"
+    This page contains **reference documentation** for Cohere. See [the docs](https://docs.langchain.com/oss/python/integrations/providers/cohere) for conceptual guides, tutorials, and examples on using Cohere modules.
+
+::: langchain_cohere

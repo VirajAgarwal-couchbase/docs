@@ -92,9 +92,6 @@ class DocumentationBuilder:
         logger.info("Building LangGraph JavaScript version...")
         self._build_langgraph_version("oss/javascript", "js")
 
-        logger.info("Building LangChain Labs content...")
-        self._build_unversioned_content("labs", "labs")
-
         logger.info("Building LangSmith content...")
         self._build_unversioned_content("langsmith", "langsmith")
 
@@ -191,9 +188,12 @@ class DocumentationBuilder:
             # Create the callout section with Mintlify Callout component
             source_links_section = (
                 "\n\n---\n\n"
-                f'<Callout icon="pen-to-square" iconType="regular">\n'
-                f"  [Edit the source of this page on GitHub]({edit_url})\n"
+                '<Callout icon="pen-to-square" iconType="regular">\n'
+                f"    [Edit the source of this page on GitHub.]({edit_url})\n"
                 "</Callout>\n"
+                '<Tip icon="terminal" iconType="regular">\n'
+                "    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.\n"  # noqa: E501
+                "</Tip>\n"
             )
 
             # Append to content
@@ -301,7 +301,7 @@ class DocumentationBuilder:
         if relative_path.parts[0] == "oss":
             self._build_oss_file(file_path, relative_path)
         # Check if this is unversioned content
-        elif relative_path.parts[0] in {"labs", "langsmith"}:
+        elif relative_path.parts[0] == "langsmith":
             self._build_unversioned_file(file_path, relative_path)
         # Handle shared files (images, docs.json, etc.)
         elif self.is_shared_file(file_path):
@@ -336,7 +336,7 @@ class DocumentationBuilder:
             logger.info("Built JavaScript version: oss/javascript/%s", oss_relative)
 
     def _build_unversioned_file(self, file_path: Path, relative_path: Path) -> None:
-        """Build an unversioned file (langsmith, labs).
+        """Build an unversioned file (langsmith).
 
         Args:
             file_path: Path to the source file.
@@ -577,10 +577,10 @@ class DocumentationBuilder:
         )
 
     def _build_unversioned_content(self, source_dir: str, output_dir: str) -> None:
-        """Build unversioned content (labs/, langsmith/).
+        """Build unversioned content (langsmith/).
 
         Args:
-            source_dir: Source directory name (e.g., "labs").
+            source_dir: Source directory name (e.g., "langsmith").
             output_dir: Output directory name (same as source_dir).
         """
         src_path = self.src_dir / source_dir
@@ -743,6 +743,10 @@ class DocumentationBuilder:
         if file_path.name == "index.mdx" and len(relative_path.parts) == 1:
             return True
 
+        # use-these-docs.mdx at root should be shared
+        if file_path.name == "use-these-docs.mdx" and len(relative_path.parts) == 1:
+            return True
+
         # Images directory should be shared
         if "images" in relative_path.parts:
             return True
@@ -821,12 +825,18 @@ class DocumentationBuilder:
 
             # Convert /oss/ links to relative paths that work from any language context
             def convert_oss_link(match: re.Match) -> str:
-                """Convert /oss/ links to language-agnostic relative paths."""
+                """Convert /oss/ links to language-agnostic relative paths.
+
+                IMPORTANT: the conversion creates relative paths that resolve from the
+                parent page's directory.
+                - /oss/providers/groq → ../providers/groq
+                """
                 pre = match.group(1)  # Everything before the URL
                 url = match.group(2)  # The URL
                 post = match.group(3)  # Everything after the URL
 
-                # Only convert absolute /oss/ paths that don't contain 'images' or '/oss/python' or '/oss/javascript'
+                # Only convert absolute /oss/ paths that don't contain 'images'
+                # or '/oss/python' or '/oss/javascript'
                 if (
                     url.startswith("/oss/")
                     and "images" not in url

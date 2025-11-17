@@ -3,15 +3,7 @@ title: Thinking in LangGraph
 description: Learn how to think about building agents with LangGraph by breaking down a customer support email agent into discrete steps
 ---
 
-import StableCalloutPy from '/snippets/stable-lg-callout-py.mdx';
-import StableCalloutJS from '/snippets/stable-lg-callout-js.mdx';
 
-:::python
-<StableCalloutPy />
-:::
-:::js
-<StableCalloutJS />
-:::
 
 LangGraph can change how you think about the agents you build. When you build an agent with LangGraph, you will first break it apart into discrete steps called **nodes**. Then, you will describe the different decisions and transitions for each of your nodes. Finally, you will connect your nodes together through a shared **state** that each node can read from and write to. In this tutorial, we'll guide you through the thought process of building a customer support email agent with LangGraph.
 
@@ -231,6 +223,7 @@ class EmailAgentState(TypedDict):
 
     # Generated content
     draft_response: str | None
+    messages: list[str] | None
 ```
 
 :::
@@ -485,7 +478,7 @@ We'll implement each node as a simple function. Remember: nodes take state, do w
     from langgraph.graph import StateGraph, START, END
     from langgraph.types import interrupt, Command, RetryPolicy
     from langchain_openai import ChatOpenAI
-    from langchain_core.messages import HumanMessage
+    from langchain.messages import HumanMessage
 
     llm = ChatOpenAI(model="gpt-4")
 
@@ -541,7 +534,7 @@ We'll implement each node as a simple function. Remember: nodes take state, do w
     import { HumanMessage } from "@langchain/core/messages";
     import { ChatAnthropic } from "@langchain/anthropic";
 
-    const llm = new ChatAnthropic({ model: "claude-sonnet-4-5" });
+    const llm = new ChatAnthropic({ model: "claude-sonnet-4-5-20250929" });
 
     async function readEmail(state: EmailAgentStateType) {
     // Extract and parse email content
@@ -749,9 +742,9 @@ We'll implement each node as a simple function. Remember: nodes take state, do w
 
         # interrupt() must come first - any code before it will re-run on resume
         human_decision = interrupt({
-            "email_id": state['email_id'],
-            "original_email": state['email_content'],
-            "draft_response": state['draft_response'],
+            "email_id": state.get('email_id',''),
+            "original_email": state.get('email_content',''),
+            "draft_response": state.get('draft_response',''),
             "urgency": classification.get('urgency'),
             "intent": classification.get('intent'),
             "action": "Please review and approve/edit this response"
@@ -760,7 +753,7 @@ We'll implement each node as a simple function. Remember: nodes take state, do w
         # Now process the human's decision
         if human_decision.get("approved"):
             return Command(
-                update={"draft_response": human_decision.get("edited_response", state['draft_response'])},
+                update={"draft_response": human_decision.get("edited_response", state.get('draft_response',''))},
                 goto="send_reply"
             )
         else:
@@ -910,7 +903,7 @@ workflow.add_edge(START, "read_email")
 workflow.add_edge("read_email", "classify_intent")
 workflow.add_edge("send_reply", END)
 
-# Compile with checkpointer for persistence
+# Compile with checkpointer for persistence, in case run graph with Local_Server --> Please compile without checkpointer
 memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)
 ```
@@ -938,8 +931,8 @@ const workflow = new StateGraph(EmailAgentState)
   .addNode("humanReview", humanReview)
   .addNode("sendReply", sendReply)
   // Add only the essential edges
-  .addEdge(START, "readEmail");
-  .addEdge("readEmail", "classifyIntent");
+  .addEdge(START, "readEmail")
+  .addEdge("readEmail", "classifyIntent")
   .addEdge("sendReply", END);
 
 // Compile with checkpointer for persistence
@@ -1096,7 +1089,7 @@ A different valid approach: You could combine `Read Email` and `Classify Intent`
 
 Application-level concerns: The caching discussion in Step 2 (whether to cache search results) is an application-level decision, not a LangGraph framework feature. You implement caching within your node functions based on your specific requirements—LangGraph doesn't prescribe this.
 
-Controlling checkpoint behavior: You can adjust when checkpoints are written using [durability modes](/oss/langgraph/durable-execution#durability-modes). The default `"async"` mode writes checkpoints in the background for good performance while maintaining durability. Use `"exit"` mode to checkpoint only at completion (faster for long-running graphs where mid-execution recovery isn't needed), or `"sync"` mode to guarantee checkpoints are written before proceeding to the next step (useful when you need to ensure state is persisted before continuing execution).
+Performance considerations: More nodes doesn't mean slower execution. LangGraph writes checkpoints in the background by default ([async durability mode](/oss/langgraph/durable-execution#durability-modes)), so your graph continues running without waiting for checkpoints to complete. This means you get frequent checkpoints with minimal performance impact. You can adjust this behavior if needed—use `"exit"` mode to checkpoint only at completion, or `"sync"` mode to block execution until each checkpoint is written.
 </Accordion>
 
 ### Where to go from here

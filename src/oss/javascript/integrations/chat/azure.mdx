@@ -56,16 +56,17 @@ If you want to get automated tracing of your model calls you can also set your [
 
 The LangChain AzureChatOpenAI integration lives in the `@langchain/openai` package:
 
-```{=mdx}
-
-import IntegrationInstallTooltip from "@mdx_components/integration_install_tooltip.mdx";
-<IntegrationInstallTooltip></IntegrationInstallTooltip>
-
-<Npm2Yarn>
-  @langchain/openai @langchain/core
-</Npm2Yarn>
-
+<CodeGroup>
+```bash npm
+npm install @langchain/openai @langchain/core
 ```
+```bash yarn
+yarn add @langchain/openai @langchain/core
+```
+```bash pnpm
+pnpm add @langchain/openai @langchain/core
+```
+</CodeGroup>
 
 ## Instantiation
 
@@ -206,13 +207,17 @@ If you are using the deprecated Azure OpenAI SDK with the `@langchain/azure-open
 
 1. Install the new `@langchain/openai` package and remove the previous `@langchain/azure-openai` package:
 
-```{=mdx}
-
-<Npm2Yarn>
-  @langchain/openai
-</Npm2Yarn>
-
+<CodeGroup>
+```bash npm
+npm install @langchain/openai
 ```
+```bash yarn
+yarn add @langchain/openai
+```
+```bash pnpm
+pnpm add @langchain/openai
+```
+</CodeGroup>
 
 ```bash
 npm uninstall @langchain/azure-openai
@@ -240,6 +245,8 @@ npm uninstall @langchain/azure-openai
    - If you were using Azure Managed Identity, you now need to use the `azureADTokenProvider` parameter to the constructor instead of `credentials`, see the [Azure Managed Identity](#using-azure-managed-identity) section for more details.
 
    - If you were using environment variables, you now have to set the `AZURE_OPENAI_API_INSTANCE_NAME` environment variable instead of `AZURE_OPENAI_API_ENDPOINT`, and add the `AZURE_OPENAI_API_VERSION` environment variable to specify the API version.
+
+---
 
 ## API reference
 

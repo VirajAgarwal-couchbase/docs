@@ -26,6 +26,7 @@ IGNORE_PKG = {
     "langchain-community",
     "langchain-experimental",
     "langchain-mcp-adapters",
+    "langchain-model-profiles",
 }
 
 # Minimum downloads threshold for inclusion (bypassed for highlighted packages)
@@ -90,7 +91,7 @@ def _enrich_package(p: dict) -> dict | None:
         return None
 
     # Check if JS package exists (indicating JS support)
-    p["js_exists"] = bool(p.get("js"))
+    p["js_exists"] = bool(p.get("js")) and p.get("js") != "n/a"
 
     # Determine provider page URL
     default_provider_page = f"/oss/integrations/providers/{p['name_short']}/"
@@ -153,7 +154,13 @@ PACKAGES_SORTED = PACKAGES_SORTED[:50]
 
 def package_row(p: dict) -> str:
     """Generate a markdown table row for a package."""
-    js = f"[✅](https://www.npmjs.com/package/{p['js']})" if p["js_exists"] else "❌"
+    js_value = p.get("js")
+    if js_value and js_value != "n/a":
+        js = f"[✅](https://www.npmjs.com/package/{js_value})"
+    elif js_value == "n/a":
+        js = "N/A"
+    else:
+        js = "❌"
     link = p["provider_page"]
     title = p["name_title"]
     provider = f"[{title}]({link})" if link else title
@@ -161,14 +168,14 @@ def package_row(p: dict) -> str:
         f"| {provider} "
         f"| [`{p['name']}`]({p['package_url']}) "
         f'| <a href="https://pypi.org/project/{p["name"]}/" target="_blank"><img src="https://static.pepy.tech/badge/{p["name"]}/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a> '  # noqa: E501
-        f'| <a href="https://pypi.org/project/{p["name"]}/" target="_blank"><img src="https://img.shields.io/pypi/v/{p["name"]}?style=flat-square&label=%20&color=orange" alt="PyPI - Latest version" noZoom class="rounded not-prose" /></a> '  # noqa: E501
+        f'| <a href="https://pypi.org/project/{p["name"]}/" target="_blank"><img src="https://img.shields.io/pypi/v/{p["name"]}?style=flat-square&label=%20" alt="PyPI - Latest version" noZoom class="rounded not-prose" /></a> '  # noqa: E501
         f"| {js} |"
     )
 
 
 def table() -> str:
     """Generate the full markdown table for all packages."""
-    header = """| Provider | Package API reference | Downloads | Latest version | <Tooltip tip="Whether an equivalent version exists in the TypeScript version of LangChain. Click the checkmark to visit the respective package.">JS/TS support</Tooltip> |
+    header = """| Provider | Package | Downloads | Latest version | <Tooltip tip="Whether an equivalent version exists in the TypeScript version of LangChain. Click the checkmark to visit the respective package.">JS/TS support</Tooltip> |
 | :--- | :--- | :--- | :--- | :--- |
 """  # noqa: E501
     return header + "\n".join(package_row(p) for p in PACKAGES_SORTED)
@@ -179,7 +186,7 @@ def doc() -> str:
 ---
 title: Integration packages
 sidebarTitle: Overview
-mode: wide
+mode: "wide"
 ---
 {{/* File generated automatically by pipeline/tools/partner_pkg_table.py */}}
 {{/* Do not manually edit */}}
@@ -187,15 +194,9 @@ mode: wide
 LangChain Python offers an extensive ecosystem with 1000+ integrations across chat & embedding models, tools & toolkits, document loaders, vector stores, and more.
 
 <Columns cols={{3}}>
-    <Card title="Chat models" icon="message" href="/oss/integrations/chat">
-        Set up your project with our quickstart guide.
-    </Card>
-    <Card title="Embedding models" icon="layer-group" href="/oss/integrations/text_embedding">
-        Explore endpoints, parameters, and examples for your API.
-    </Card>
-    <Card title="Tools and toolkits" icon="screwdriver-wrench" href="/oss/integrations/tools">
-        Explore endpoints, parameters, and examples for your API.
-    </Card>
+    <Card title="Chat models" icon="message" href="/oss/integrations/chat" arrow />
+    <Card title="Embedding models" icon="layer-group" href="/oss/integrations/text_embedding" arrow />
+    <Card title="Tools and toolkits" icon="screwdriver-wrench" href="/oss/integrations/tools" arrow />
 </Columns>
 
 To see a full list of integrations by component type, refer to the categories in the sidebar.
@@ -208,8 +209,10 @@ To see a full list of integrations by component type, refer to the categories in
 
 [See all providers](/oss/integrations/providers/all_providers) or search for a provider using the search field.
 
+Community integrations can be found in [`langchain-community`](https://github.com/langchain-ai/langchain-community).
+
 <Info>
-    If you'd like to contribute an integration, see [our contributing guide](/oss/contributing).
+    If you'd like to contribute an integration, see the [contributing guide](/oss/contributing).
 </Info>
 
 """  # noqa: E501
