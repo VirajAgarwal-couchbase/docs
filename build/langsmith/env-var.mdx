@@ -176,6 +176,10 @@ See the [Python](https://reference.langchain.com/python/langsmith/deployment/sdk
 
 Defaults to `120` seconds.
 
+<Note>
+Setting a very high value for `RESUMABLE_STREAM_TTL_SECONDS` can result in substantial Redis memory usage when there are many concurrent runs with large or frequent streaming output. Set this value to the minimum value to enable recovery during network interruptions and prefer checkpointing for long term durability and execution snapshotting.
+</Note>
+
 ---
 
 <Callout icon="pen-to-square" iconType="regular">
