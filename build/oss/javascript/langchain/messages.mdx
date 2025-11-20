@@ -177,7 +177,7 @@ const humanMsg = new HumanMessage({
 
 ### AI Message
 
-An [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html) represents the output of a model invocation. They can include multimodal data, tool calls, and provider-specific metadata that you can later access.
+An [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) represents the output of a model invocation. They can include multimodal data, tool calls, and provider-specific metadata that you can later access.
 
 
 
@@ -187,9 +187,9 @@ console.log(typeof response);  // AIMessage
 ```
 
 
-[`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html) objects are returned by the model when calling it, which contains all of the associated metadata in the response.
+[`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) objects are returned by the model when calling it, which contains all of the associated metadata in the response.
 
-Providers weigh/contextualize types of messages differently, which means it is sometimes helpful to manually create a new [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html) object and insert it into the message history as if it came from the model.
+Providers weigh/contextualize types of messages differently, which means it is sometimes helpful to manually create a new [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) object and insert it into the message history as if it came from the model.
 
 
 
@@ -238,7 +238,7 @@ const response = await model.invoke(messages);
 
 #### Tool calls
 
-When models make [tool calls](/oss/javascript/langchain/models#tool-calling), they're included in the [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html):
+When models make [tool calls](/oss/javascript/langchain/models#tool-calling), they're included in the [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html):
 
 
 
@@ -258,7 +258,7 @@ Other structured data, such as reasoning or citations, can also appear in messag
 
 #### Token usage
 
-An [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html) can hold token counts and other usage metadata in its [`usage_metadata`](https://reference.langchain.com/javascript/types/_langchain_core.messages.UsageMetadata.html) field:
+An [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) can hold token counts and other usage metadata in its [`usage_metadata`](https://reference.langchain.com/javascript/types/_langchain_core.messages.UsageMetadata.html) field:
 
 
 ```typescript
@@ -289,7 +289,7 @@ See [`UsageMetadata`](https://reference.langchain.com/javascript/types/_langchai
 
 #### Streaming and chunks
 
-During streaming, you'll receive [`AIMessageChunk`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessageChunk.html) objects that can be combined into a full message object:
+During streaming, you'll receive [`AIMessageChunk`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessageChunk.html) objects that can be combined into a full message object:
 
 
 
@@ -353,7 +353,7 @@ const response = await model.invoke(messages);  // Model processes the result
         The stringified output of the tool call.
     </ParamField>
     <ParamField path="tool_call_id" type="string" required>
-        The ID of the tool call that this message is responding to. (this must match the ID of the tool call in the [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html))
+        The ID of the tool call that this message is responding to. (this must match the ID of the tool call in the [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html))
     </ParamField>
     <ParamField path="name" type="string" required>
         The name of the tool that was called.
@@ -1018,7 +1018,7 @@ const imageBlock: ContentBlock.Multimodal.Image = {
 
 ## Use with chat models
 
-[Chat models](/oss/javascript/langchain/models) accept a sequence of message objects as input and return an [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html) as output. Interactions are often stateless, so that a simple conversational loop involves invoking a model with a growing list of messages.
+[Chat models](/oss/javascript/langchain/models) accept a sequence of message objects as input and return an [`AIMessage`](https://reference.langchain.com/javascript/classes/_langchain_core.messages.AIMessage.html) as output. Interactions are often stateless, so that a simple conversational loop involves invoking a model with a growing list of messages.
 
 Refer to the below guides to learn more:
 
