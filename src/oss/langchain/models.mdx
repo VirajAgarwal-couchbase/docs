@@ -68,16 +68,9 @@ See @[`initChatModel`][initChatModel] for more detail, including information on 
     Send multiple requests to a model in a batch for more efficient processing.
 </Card>
 
-:::python
 <Info>
-    In addition to chat models, LangChain provides support for other adjacent technologies, such as embedding models and vector stores. See the [integrations page](/oss/python/integrations/providers/overview) for details.
+    In addition to chat models, LangChain provides support for other adjacent technologies, such as embedding models and vector stores. See the [integrations page](/oss/integrations/providers/overview) for details.
 </Info>
-:::
-:::js
-<Info>
-    In addition to chat models, LangChain provides support for other adjacent technologies, such as embedding models and vector stores. See the [integrations page](/oss/javascript/integrations/providers/overview) for details.
-</Info>
-:::
 
 ## Parameters
 
@@ -1256,11 +1249,11 @@ to avoid mutating shared state.
 
 **Option 2 (fix data upstream)**
 
-The primary source for the data is the [models.dev](https://models.dev/) project. These data are merged with additional fields and overrides in LangChain [integration packages](/oss/python/integrations/providers/overview) and are shipped with those packages.
+The primary source for the data is the [models.dev](https://models.dev/) project. These data are merged with additional fields and overrides in LangChain [integration packages](/oss/integrations/providers/overview) and are shipped with those packages.
 
 Model profile data can be updated through the following process:
 1. (If needed) update the source data at [models.dev](https://models.dev/) through a pull request to its [repository on Github](https://github.com/sst/models.dev).
-2. (If needed) update additional fields and overrides in `langchain_<package>/data/profile_augmentations.toml` through a pull request to the LangChain [integration package](/oss/python/integrations/providers/overview)`.
+2. (If needed) update additional fields and overrides in `langchain_<package>/data/profile_augmentations.toml` through a pull request to the LangChain [integration package](/oss/integrations/providers/overview)`.
 3. Use the [langchain-model-profiles](https://pypi.org/project/langchain-model-profiles/) CLI tool to pull the latest data from [models.dev](https://models.dev/), merge in the augmentations and update the profile data:
 
 ```bash
@@ -1320,11 +1313,11 @@ const model = initChatModel("...", { profile: customProfile });
 
 **Option 2 (fix data upstream)**
 
-The primary source for the data is the [models.dev](https://models.dev/) project. These data are merged with additional fields and overrides in LangChain [integration packages](/oss/javascript/integrations/providers/overview) and are shipped with those packages.
+The primary source for the data is the [models.dev](https://models.dev/) project. These data are merged with additional fields and overrides in LangChain [integration packages](/oss/integrations/providers/overview) and are shipped with those packages.
 
 Model profile data can be updated through the following process:
 1. (If needed) update the source data at [models.dev](https://models.dev/) through a pull request to its [repository on Github](https://github.com/sst/models.dev).
-2. (If needed) update additional fields and overrides in `langchain-<package>/profiles.toml` through a pull request to the LangChain [integration package](/oss/javascript/integrations/providers/overview).
+2. (If needed) update additional fields and overrides in `langchain-<package>/profiles.toml` through a pull request to the LangChain [integration package](/oss/integrations/providers/overview).
 
 :::
 
