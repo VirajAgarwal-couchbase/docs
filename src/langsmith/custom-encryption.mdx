@@ -208,7 +208,7 @@ encryption = Encryption()
 async def get_encryption_context(user: BaseUser, ctx: EncryptionContext) -> dict:
     return {
         **ctx.metadata,
-        "tenant_id": getattr(user, "tenant_id", "default"),
+        "tenant_id": user["tenant_id"],
     }
 ```
 
