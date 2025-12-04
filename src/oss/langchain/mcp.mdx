@@ -501,9 +501,7 @@ const client = new MultiServerMCPClient({
 
 By default, `MultiServerMCPClient` is **stateless**—each tool invocation creates a fresh MCP session, executes the tool, and then cleans up.
 
-If you need to control the lifecycle of an MCP session (for example, when working with a stateful server that maintains context across tool calls), you can create a persistent `ClientSession` using `client.session()`.
-
-This gives you explicit control over the [session lifecycle](https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle)—initializing, using, and then closing the session.
+If you need to control the [lifecycle](https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle) of an MCP session (for example, when working with a stateful server that maintains context across tool calls), you can create a persistent `ClientSession` using `client.session()`.
 
 ```python Using MCP ClientSession for stateful tool usage
 from langchain_mcp_adapters.client import MultiServerMCPClient
