@@ -40,7 +40,7 @@ client = MultiServerMCPClient(  # [!code highlight]
             "args": ["/path/to/math_server.py"],
         },
         "weather": {
-            "transport": "streamable_http",  # HTTP-based remote server
+            "transport": "http",  # HTTP-based remote server
             # Ensure you start your weather server on port 8000
             "url": "http://localhost:8000/mcp",
         }
@@ -395,7 +395,7 @@ Server runs as an independent process handling HTTP requests. Supports remote co
 client = MultiServerMCPClient(
     {
         "weather": {
-            "transport": "streamable_http",
+            "transport": "http",
             "url": "http://localhost:8000/mcp",
         }
     }
@@ -426,7 +426,7 @@ from langchain.agents import create_agent
 client = MultiServerMCPClient(
     {
         "weather": {
-            "transport": "streamable_http",
+            "transport": "http",
             "url": "http://localhost:8000/mcp",
             "headers": {  # [!code highlight]
                 "Authorization": "Bearer YOUR_TOKEN",  # [!code highlight]
@@ -452,7 +452,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 client = MultiServerMCPClient(
     {
         "weather": {
-            "transport": "streamable_http",
+            "transport": "http",
             "url": "http://localhost:8000/mcp",
             "auth": auth, # [!code highlight]
         }
