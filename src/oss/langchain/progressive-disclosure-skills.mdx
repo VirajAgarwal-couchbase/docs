@@ -973,26 +973,11 @@ For the SQL query use case, you could extend progressive disclosure to dynamical
 **Example approach:**
 1. User asks: "Find customers who haven't ordered in 6 months"
 2. Agent loads `sales_analytics` schema (as shown in this tutorial)
-3. Agent also loads 2-3 relevant example queries:
+3. Agent also loads 2-3 relevant example queries (via semantic search or tag-based lookup):
    - Query for finding inactive customers
    - Query with date-based filtering
    - Query joining customers and orders tables
 4. Agent writes query using both schema knowledge AND example patterns
-
-**Implementation strategies:**
-- **Semantic search**: Embed example queries and retrieve the most similar ones based on user query
-- **Tag-based lookup**: Tag examples by pattern (joins, aggregations, date filters) and load relevant tags
-- **Hybrid**: Load schema first, then search examples within that skill's domain
-
-**Benefits:**
-- **Better query quality**: Examples demonstrate patterns, idioms, and edge cases
-- **Consistency**: Examples enforce coding standards and best practices
-- **Reduced hallucination**: Concrete examples ground the agent's responses
-
-**Trade-offs:**
-- Additional latency from example retrieval
-- More complex implementation (requires example storage and search)
-- Context window usage increases with examples
 
 This combination of progressive disclosure (loading schemas on-demand) and dynamic few-shot prompting (loading relevant examples) creates a powerful context engineering pattern that scales to large knowledge bases while providing high-quality, grounded outputs.
 
