@@ -961,6 +961,7 @@
                     "langsmith/export-traces",
                     "langsmith/compare-traces",
                     "langsmith/share-trace",
+                    "langsmith/langsmith-fetch",
                     "langsmith/platform-logs",
                     "langsmith/data-export"
                   ]
