@@ -33,12 +33,12 @@ The quality of your system depends on context engineering. The goal is to ensure
 
 There are four main patterns for building multi-agent systems, each suited to different use cases:
 
-| Pattern | How it works | Best for |
-|--------------|--------------|----------|
-| [**Supervisor**](#supervisor) | A central agent calls sub-agents as tools | Task orchestration, parallel execution |
-| [**Dynamic agent**](#dynamic-agent) | One agent with dynamically changing prompts/tools based on state | Multi-stage conversations, sequential unlocking |
-| [**Skills**](#skills) | Specialized prompts invoked on-demand | Progressive disclosure, team distribution |
-| [**Workflow**](#workflow) | Agents connected via deterministic transitions | Pipelines, structured processing |
+| Pattern | How it works |
+|--------------|--------------|
+| [**Supervisor**](#supervisor) | A supervisor agent calls other agents as tools. Centralized control — all routing passes through the supervisor. |
+| [**Dynamic agent**](#dynamic-agent) | Single agent whose available tools and capabilities change based on state/memory. Useful for enforcing sequential constraints or conditionally unlocking features. |
+| [**Skills**](#skills) | Specialized prompts loaded on-demand. The main agent stays in control and gains additional context as needed. |
+| [**Custom workflow**](#custom-workflow) | Build bespoke logic with LangGraph, mixing deterministic and agentic steps. Reuse or customize agents as needed. |
 
 <Tip>
     You can mix architectures! For example, a **supervisor** can manage **workflow** sub-graphs, or a **dynamic agent** can invoke **skills** at certain stages.
@@ -398,9 +398,9 @@ const agent = createAgent({
 The key mechanism is using @[`Command`] to update state fields that control which agent configuration is active. Middleware can then read this state and dynamically configure the agent's behavior.
 
 
-## Workflow
+## Custom workflow
 
-In the **workflow** architecture, agents are connected via deterministic transitions defined at graph construction time. The flow between agents is explicit and predictable.
+In the **custom workflow** architecture, agents are connected via deterministic transitions defined at graph construction time. The flow between agents is explicit and predictable.
 
 **Key characteristics:**
 
