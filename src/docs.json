@@ -966,6 +966,7 @@
                   "pages": [
                     "langsmith/filter-traces-in-application",
                     "langsmith/export-traces",
+                    "langsmith/langsmith-fetch",
                     "langsmith/compare-traces",
                     "langsmith/share-trace",
                     "langsmith/platform-logs",
