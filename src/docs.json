@@ -1303,6 +1303,7 @@
                 {
                   "group": "Get started",
                   "pages": [
+                    "langsmith/agent-builder-quickstart",
                     "langsmith/agent-builder-essentials",
                     "langsmith/agent-builder-templates",
                     "langsmith/agent-builder-setup",
