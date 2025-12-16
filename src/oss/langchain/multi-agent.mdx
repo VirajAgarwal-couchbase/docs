@@ -85,6 +85,10 @@ By default, subagent calls are **synchronous**—the main agent waits for each s
 
 For **long-running tasks** (reviewing contracts, conducting research, auditing code), use **asynchronous execution**. The main agent kicks off a background job and continues conversing with the user while the work completes.
 
+<Tip>
+Not to be confused with Python's `async`/`await`. Here, "async" means the main agent kicks off a background job (typically in a separate process or service) and continues without blocking.
+</Tip>
+
 ```mermaid
 sequenceDiagram
     participant User
