@@ -1,0 +1,944 @@
+---
+title: Multi-agent
+---
+
+Multi-agent systems break complex applications into coordinated components. **Importantly, "multi-agent" doesn't necessarily mean multiple distinct agents** — a single agent with dynamic behavior can achieve similar capabilities.
+
+## Why multi-agent?
+
+When developers say they need "multi-agent," they're usually looking for one or more of these capabilities:
+
+* **Context management**: Provide specialized knowledge without overwhelming the model's context window. If context were infinite and latency zero, you could dump all knowledge into a single prompt — but since it's not, you need patterns to selectively surface relevant information.
+* **Distributed development**: Allow different teams to develop and maintain capabilities independently, composing them into a larger system with clear boundaries and independent testing.
+* **Parallelization**: Spawn specialized workers for subtasks and execute them concurrently.
+
+Multi-agent patterns are particularly valuable when a single agent has too many [tools](/oss/javascript/langchain/tools) and makes poor decisions about which to use, when tasks require specialized knowledge with extensive context (long prompts and domain-specific tools), or when you need to enforce sequential constraints that unlock capabilities only after certain conditions are met.
+
+## Context engineering
+
+At the center of multi-agent design is **[context engineering](/oss/javascript/langchain/context-engineering)** — deciding what information each agent sees. LangChain gives you fine-grained control over which parts of the conversation or state are passed to each agent, specialized prompts tailored to sub-agents, inclusion or exclusion of intermediate reasoning, and customizing input/output formats per agent.
+
+The quality of your system depends on context engineering. The goal is to ensure that each agent has access to the correct data it needs to perform its task, whether it's acting as a tool or as an active agent.
+
+## Patterns
+
+Here are the main patterns for building multi-agent systems, each suited to different use cases:
+
+| Pattern | How it works |
+|--------------|--------------|
+| [**Subagents**](#subagents) | A main agent coordinates subagents and background jobs as tools. Centralized control — all routing passes through the main agent. Multiple coordination approaches available. |
+| [**State machine**](#state-machine) | Single agent whose configuration (prompt, tools, capabilities) changes as it moves through different states. Efficient for sequential workflows — one tool call both performs the action and transitions to the next state. |
+| [**Skills**](#skills) | Specialized prompts loaded on-demand. The main agent stays in control and gains additional context as needed. |
+| [**Router**](#router) | A routing step classifies input and directs it to one or more specialized agents. Results are collected and returned to the user. |
+| [**Custom workflow**](#custom-workflow) | Build bespoke logic with LangGraph, mixing deterministic and agentic steps. Reuse or customize agents as needed. |
+
+<Tip>
+    You can mix patterns! For example, a **subagents** pattern can manage **workflow** sub-graphs or use the **router** pattern as a tool (querying multiple knowledge bases in parallel, then synthesizing results). A **state machine** can invoke **skills** at specific stages (loading specialized context only when reaching certain steps). The **[one tool for all agents](#one-tool-for-all-agents-spawning)** approach can work within a **custom workflow** to parallelize independent tasks while maintaining deterministic overall structure.
+</Tip>
+
+**Common mechanisms:** These patterns share common mechanisms for coordinating multi-agent behavior. Most rely on **tool calling** as the primary coordination mechanism—tools can invoke subagents ([subagents](#subagents)), update state to trigger routing or behavior changes ([state machine](#state-machine)), load context on-demand ([skills](#skills)), or even invoke entire multi-agent systems (like wrapping a [router](#router) as a tool).
+
+Tools drive dynamic behavior: updating state to route between agents, loading context, changing configuration, or spawning sub-agents. Patterns can also use middleware to modify system prompts or implement deterministic routing ([custom workflows](#custom-workflow)).
+
+**[Progressive disclosure](/oss/javascript/langchain/progressive-disclosure-skills)** loads information on-demand, valuable for managing large amounts of context. It combines retrieval with dynamic state updates (registering tools, discovering sub-agents). However, it adds latency through extra tool calls—simpler patterns like [state machine](#state-machine) suffice when context is manageable or sequential constraints are needed.
+
+## Subagents
+
+In the **subagents** architecture, a central main agent coordinates subagents by calling them as tools. The main agent decides which subagent to invoke, what input to provide, and how to combine results. Subagents are stateless—they don't remember past interactions, with all conversation memory maintained by the main agent. This provides context isolation: each subagent invocation works in a clean context window, preventing context bloat in the main conversation.
+
+**Key characteristics:**
+
+* Centralized control: All routing passes through the main agent
+* No direct user interaction: Subagents return results to the main agent, not the user
+* Subagents via tools: Subagents are invoked via tools
+* Parallel execution: The main agent can invoke multiple subagents in a single turn
+
+Use the subagents pattern when you have multiple distinct domains (e.g., calendar, email, CRM, database), subagents don't need to converse directly with users, or you want centralized workflow control. For simpler cases with just a few tools, use a single agent.
+
+<Card
+    title="Tutorial: Build an agent with subagents"
+    icon="sitemap"
+    href="/oss/javascript/langchain/supervisor"
+    arrow cta="Learn more"
+>
+    Learn how to build a personal assistant using the subagents pattern, where a central main agent coordinates specialized worker agents.
+</Card>
+
+Main approaches to implementing subagent coordination:
+
+### One tool per agent
+
+```mermaid
+graph LR
+    A[User] --> B[Main Agent]
+    B --> C[Subagent A]
+    B --> D[Subagent B]
+    B --> E[Subagent C]
+    C --> B
+    D --> B
+    E --> B
+    B --> F[User response]
+```
+
+The key idea is wrapping subagents as tools that the main agent can call:
+
+
+```typescript
+import { createAgent, tool } from "langchain";
+import * as z from "zod";
+
+// Create a sub-agent
+const subagent = createAgent({...});  // [!code highlight]
+
+// Wrap it as a tool  // [!code highlight]
+const callSubagent = tool(  // [!code highlight]
+  async ({ query }) => {  // [!code highlight]
+    const result = await subagent.invoke({
+      messages: [{ role: "user", content: query }]
+    });
+    return result.messages.at(-1)?.text;
+  },
+  {
+    name: "subagent_name",
+    description: "subagent_description",
+    schema: z.object({
+      query: z.string().describe("The query to send to subagent")
+    })
+  }
+);
+
+// Main agent with subagent as a tool  // [!code highlight]
+const mainAgent = createAgent({ model, tools: [callSubagent] });  // [!code highlight]
+```
+
+
+The main agent invokes the subagent tool when it decides the task matches the subagent's description, receives the result, and continues orchestration.
+
+There are several points where you can control how context is passed between the main agent and its subagents:
+
+1. **Sub-agent name** (`"subagent_name"`): This is how the main agent refers to the sub-agent. Since it influences prompting, choose it carefully.
+2. **Sub-agent description** (`"subagent_description"`): This is what the main agent knows about the sub-agent. It directly shapes how the main agent decides when to call it.
+3. **Input to the sub-agent**: You can customize this input to better shape how the sub-agent interprets tasks. In the example above, we pass the agent-generated `query` directly.
+4. **Output from the sub-agent**: This is the response passed back to the main agent. You can adjust what is returned to control how the main agent interprets results. In the example above, we return the final message text, but you could return additional state or metadata.
+
+<Accordion title="Customizing sub-agent input">
+
+There are two main levers to control the input that the main agent passes to a sub-agent: modifying the prompt (adjust the main agent's prompt or tool metadata to better guide when and how it calls the sub-agent) or context injection (add input that isn't practical to capture in a static prompt, like full message history, prior results, or task metadata, by adjusting the tool call to pull from the agent's state).
+
+
+```typescript
+import { createAgent, tool, AgentState, ToolMessage } from "langchain";
+import { Command } from "@langchain/langgraph";
+import * as z from "zod";
+
+// Example of passing the full conversation history to the sub agent via the state.
+const callSubagent1 = tool(
+  async ({query}) => {
+    const state = getCurrentTaskInput<AgentState>();
+    // Apply any logic needed to transform the messages into a suitable input
+    const subAgentInput = someLogic(query, state.messages);
+    const result = await subagent1.invoke({
+      messages: subAgentInput,
+      // You could also pass other state keys here as needed.
+      // Make sure to define these in both the main and subagent's
+      // state schemas.
+      exampleStateKey: state.exampleStateKey
+    });
+    return result.messages.at(-1)?.content;
+  },
+  {
+    name: "subagent1_name",
+    description: "subagent1_description",
+  }
+);
+```
+
+
+</Accordion>
+
+<Accordion title="Customizing sub-agent output">
+
+Two common strategies for shaping what the main agent receives back from a sub-agent: First, modify the sub-agent's prompt to specify exactly what should be returned—this is useful when outputs are incomplete, too verbose, or missing key details. A common failure mode is that the sub-agent performs tool calls or reasoning but doesn't include the results in its final message; remind it that the controller and user only see the final output, so all relevant info must be included there. Second, adjust or enrich the sub-agent's response in code before handing it back to the main agent—for example, pass specific state keys back in addition to the final text. This requires wrapping the result in a [`Command`](https://reference.langchain.com/javascript/classes/_langchain_langgraph.index.Command.html) (or equivalent structure) so you can merge custom state with the sub-agent's response.
+
+
+```typescript
+import { tool, ToolMessage } from "langchain";
+import { Command } from "@langchain/langgraph";
+import * as z from "zod";
+
+const callSubagent1 = tool(
+  async ({ query }, config) => {
+    const result = await subagent1.invoke({
+      messages: [{ role: "user", content: query }]
+    });
+
+    // Return a Command to update multiple state keys
+    return new Command({
+      update: {
+        // Pass back additional state from the subagent
+        exampleStateKey: result.exampleStateKey,
+        messages: [
+          new ToolMessage({
+            content: result.messages.at(-1)?.text,
+            tool_call_id: config.toolCall?.id!
+          })
+        ]
+      }
+    });
+  },
+  {
+    name: "subagent1_name",
+    description: "subagent1_description",
+    schema: z.object({
+      query: z.string().describe("The query to send to subagent1")
+    })
+  }
+);
+```
+
+
+</Accordion>
+
+
+### One tool for all agents
+
+An alternative approach uses a single parameterized tool to spawn ephemeral sub-agents for independent tasks. Unlike the [one tool per agent](#one-tool-per-agent) approach where each sub-agent is wrapped as a separate tool, this uses a convention-based approach with a single `task` tool: the task description is passed as a human message to the sub-agent, and the sub-agent's final message is returned as the tool result.
+
+```mermaid
+graph LR
+    A[User] --> B[Main Agent]
+    B --> C{task<br/>agent_name, description}
+    C -->|research| D[Research Agent]
+    C -->|writer| E[Writer Agent]
+    C -->|reviewer| F[Reviewer Agent]
+    D --> C
+    E --> C
+    F --> C
+    C --> B
+    B --> G[User response]
+```
+
+**Key characteristics:**
+
+* Single task tool: One parameterized tool that can invoke any registered sub-agent by name
+* Convention-based invocation: Agent selected by name, task passed as human message, final message returned as tool result
+* Team distribution: Different teams can develop and deploy agents independently
+* Agent discovery: Sub-agents can be discovered via system prompt (listing available agents) or through [progressive disclosure](/oss/javascript/langchain/progressive-disclosure-skills) (loading agent information on-demand via tools)
+
+Use this approach when you want to distribute agent development across multiple teams, need to isolate complex tasks into separate context windows, need a scalable way to add new agents without modifying the coordinator, or prefer convention over customization. This approach trades flexibility in context engineering for simplicity in agent composition and strong context isolation.
+
+<Tip>
+An interesting aspect of this approach is that sub-agents may have the exact same capabilities as the main agent. In such cases, spawning a sub-agent is **really about context isolation** as the primary reason—allowing complex, multi-step tasks to run in isolated context windows without bloating the main agent's conversation history. The sub-agent completes its work autonomously and returns only a concise summary, keeping the main thread focused and efficient.
+</Tip>
+
+
+```typescript
+import { tool, createAgent } from "langchain";
+import * as z from "zod";
+
+// Sub-agents developed by different teams
+const researchAgent = createAgent({
+  model: "gpt-4o",
+  prompt: "You are a research specialist...",
+});
+
+const writerAgent = createAgent({
+  model: "gpt-4o",
+  prompt: "You are a writing specialist...",
+});
+
+// Registry of available sub-agents
+const SUBAGENTS = {
+  research: researchAgent,
+  writer: writerAgent,
+};
+
+const task = tool(
+  async ({ agentName, description }) => {
+    const agent = SUBAGENTS[agentName];
+    const result = await agent.invoke({
+      messages: [
+        { role: "user", content: description }
+      ],
+    });
+    return result.messages.at(-1)?.content;
+  },
+  {
+    name: "task",
+    description: `Launch an ephemeral subagent.
+
+Available agents:
+- research: Research and fact-finding
+- writer: Content creation and editing`,
+    schema: z.object({
+      agentName: z
+        .string()
+        .describe("Name of agent to spawn"),
+      description: z
+        .string()
+        .describe("Task description"),
+    }),
+  }
+);
+
+// Main coordinator agent
+const mainAgent = createAgent({
+  model: "gpt-4o",
+  tools: [task],
+  prompt: (
+    "You coordinate specialized sub-agents. " +
+    "Available: research (fact-finding), " +
+    "writer (content creation). " +
+    "Use the task tool to delegate work."
+  ),
+});
+```
+
+
+<Tip>
+**One tool per agent vs One tool for all agents**: The [one tool per agent](#one-tool-per-agent) approach wraps each sub-agent as a separate tool with custom input/output handling, giving fine-grained control over context engineering. The one tool for all agents approach uses a single tool with a consistent convention, making it easier to add new agents but harder to customize how each agent receives context.
+</Tip>
+
+
+### Background jobs
+
+Background jobs keep the main agent responsive during long-running tasks. When work takes minutes—reviewing contracts, conducting research, auditing code—the main agent kicks off a subagent as a background job and continues conversing with the user while the work completes.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Main Agent
+    participant Job System
+    participant Contract Reviewer
+
+    User->>Main Agent: "Review this M&A contract"
+    Main Agent->>Job System: run_agent("legal_reviewer", task)
+    Job System->>Contract Reviewer: Start agent
+    Job System-->>Main Agent: job_id: "job_123"
+    Main Agent-->>User: "Started review (job_123)"
+
+    Note over Contract Reviewer: Reviewing 150+ pages<br/>(may take minutes)
+
+    User->>Main Agent: "What's the status?"
+    Main Agent->>Job System: check_status(job_id)
+    Job System-->>Main Agent: "running"
+    Main Agent-->>User: "Still reviewing contract..."
+
+    Note over Contract Reviewer: Review completes
+
+    User->>Main Agent: "Is it done yet?"
+    Main Agent->>Job System: check_status(job_id)
+    Job System-->>Main Agent: "completed"
+    Main Agent->>Job System: get_result(job_id)
+    Job System-->>Main Agent: Contract analysis
+    Main Agent-->>User: "Review complete: [findings]"
+```
+
+**Key characteristics:**
+
+* Three-tool pattern: Kick off job (returns job ID), check status, get results
+* Asynchronous execution: Work proceeds in the background while main agent remains responsive
+* User-initiated checks: Main agent checks job status when the user asks, not on a polling schedule
+* Flexible workload: Works for long-running agents or any async computation (database queries, API calls, ML inference)
+
+**Handling job completion:** When a job finishes, your application needs to notify the user. One approach: surface a notification that, when clicked, sends a `HumanMessage` like "Check job_123 and summarize the results." This prompts the main agent to retrieve and present the findings.
+
+
+## State machine
+
+In the **state machine** architecture, you have a single agent whose behavior (prompt, tools, and capabilities) changes dynamically based on state. The state machine is implemented via [middleware](/oss/javascript/langchain/middleware/overview) that performs transitions through tool calls.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Triage
+    Triage --> Specialist: record_warranty_status()
+    Specialist --> Resolution: record_issue_type()
+    Resolution --> [*]
+
+    note right of Triage
+        Step 1: Collect information
+        Tools: [record_warranty_status]
+    end note
+
+    note right of Specialist
+        Step 2: Classify the issue
+        Tools: [record_issue_type]
+    end note
+
+    note right of Resolution
+        Step 3: Provide solution
+        Tools: [provide_solution, escalate_to_human]
+    end note
+```
+
+**Key characteristics:**
+
+* State-driven configuration: A single agent whose prompts and tools change dynamically based on a state variable (e.g., `current_step`)
+* Direct user interaction: Each step's configuration handles user messages directly
+* Persistent state: State survives across conversation turns
+
+<Tip>
+**Alternative to handoffs**: This pattern can be more efficient than handoff-based approaches like [OpenAI's agent handoffs](https://openai.github.io/openai-agents-python/handoffs/) or [LangGraph swarm](https://github.com/langchain-ai/langgraph-swarm-py). Depending on implementation, handoffs may require two tool calls (transfer control, then act) while state machines can combine both. Because it's a single agent switching behaviors rather than distinct agents, it's simpler to streamline the tool calls and manage the conversation context correctly.
+</Tip>
+
+Use the state machine pattern when you need to enforce sequential constraints (unlock capabilities only after preconditions are met), the agent needs to converse directly with the user across different states, or you're building multi-stage conversational flows. This pattern is particularly valuable for customer support scenarios where you need to collect information in a specific sequence — for example, collecting a warranty ID before processing a refund.
+
+<Card
+    title="Tutorial: Build a customer support agent using a state machine"
+    icon="people-arrows"
+    href="/oss/javascript/langchain/customer-support-state-machine"
+    arrow cta="Learn more"
+>
+    Learn how to build a customer support agent using the state machine pattern, where a single agent transitions between different configurations.
+</Card>
+
+At the core, the state machine pattern relies on [persistent state](/oss/javascript/langchain/short-term-memory) that survives across conversation turns:
+
+1. **State variable**: A field in your state schema (e.g., `current_step: str`) tracks which step is currently active.
+2. **State update tool**: The agent uses a tool to change the value of `current_step` when transitioning to the next step.
+3. **Dynamic configuration**: On each turn, middleware reads `current_step` from the persisted state and dynamically configures the appropriate system prompt, tools, and behavior.
+
+This pattern creates a state machine where each step represents a distinct state with its own configuration and capabilities.
+
+<Accordion title="Building a state machine with middleware">
+
+
+```typescript
+import { tool, createAgent, AgentState } from "langchain";
+import { wrapModelCall, ModelRequest, ModelResponse } from "langchain/agents/middleware";
+import { Command } from "@langchain/langgraph";
+import { ToolMessage } from "langchain/messages";
+import * as z from "zod";
+
+// 1. Define state with current_step tracker
+const SupportState = z.object({  // [!code highlight]
+  currentStep: z.string().default("triage"),  // [!code highlight]
+  warrantyStatus: z.string().optional()
+});
+
+// 2. Tools update currentStep via Command
+const recordWarrantyStatus = tool(
+  async ({ status }, config) => {
+    return new Command({  // [!code highlight]
+      update: {  // [!code highlight]
+        messages: [  // [!code highlight]
+          new ToolMessage({
+            content: `Warranty status recorded: ${status}`,
+            tool_call_id: config.toolCall?.id!
+          })
+        ],
+        warrantyStatus: status,
+        currentStep: "specialist"  // Transition to next step  // [!code highlight]
+      }
+    });
+  },
+  {
+    name: "record_warranty_status",
+    description: "Record warranty status and transition",
+    schema: z.object({ status: z.string() })
+  }
+);
+
+// 3. Middleware applies dynamic configuration based on currentStep
+const applyStepConfig = wrapModelCall(  // [!code highlight]
+  async (request: ModelRequest, handler) => {
+    const step = request.state.currentStep || "triage";  // [!code highlight]
+
+    // Map steps to their configurations
+    const configs = {
+      triage: {
+        prompt: "Collect warranty information...",
+        tools: [recordWarrantyStatus]
+      },
+      specialist: {
+        prompt: `Provide solutions based on warranty: ${request.state.warrantyStatus}`,
+        tools: [provideSolution, escalate]
+      }
+    };
+
+    const config = configs[step];
+    request = request.override({  // [!code highlight]
+      systemPrompt: config.prompt,  // [!code highlight]
+      tools: config.tools  // [!code highlight]
+    });
+    return handler(request);
+  }
+);
+
+// 4. Create agent with middleware
+const agent = createAgent({
+  model,
+  tools: [recordWarrantyStatus, provideSolution, escalate],
+  stateSchema: SupportState,
+  middleware: [applyStepConfig],  // [!code highlight]
+  checkpointer: new InMemorySaver()  // Persist state across turns  // [!code highlight]
+});
+```
+
+
+</Accordion>
+
+
+## Skills
+
+In the **skills** architecture, specialized capabilities are packaged as invokable "skills" that augment an agent's behavior. Skills are primarily prompt-driven specializations that an agent can invoke on-demand.
+
+```mermaid
+graph LR
+    A[User] --> B[Agent]
+    B --> C[Python skill]
+    B --> D[SQL skill]
+    B --> E[Docs skill]
+    B --> A
+```
+
+**Key characteristics:**
+
+* Prompt-driven specialization: Skills are primarily defined by specialized prompts
+* Progressive disclosure: Skills become available based on context or user needs
+* Team distribution: Different teams can develop and maintain skills independently
+* Lightweight composition: Skills are simpler than full sub-agents
+
+Use the skills pattern when you want a single agent with many possible specializations, you don't need to enforce specific constraints between skills, or different teams need to develop capabilities independently. Common examples include coding assistants (skills for different languages or tasks), knowledge bases (skills for different domains), and creative assistants (skills for different formats).
+
+<Tip>
+This pattern is conceptually identical to [llms.txt](https://llmstxt.org/) (introduced by Jeremy Howard), which uses tool calling for progressive disclosure of documentation. The skills pattern applies the same approach to specialized prompts and domain knowledge rather than just documentation pages.
+</Tip>
+
+
+```typescript
+import { tool, createAgent } from "langchain";
+import * as z from "zod";
+
+const loadSkill = tool(
+  async ({ skillName }) => {
+    // Load skill content from file/database
+    return "";
+  },
+  {
+    name: "load_skill",
+    description: `Load a specialized skill.
+
+Available skills:
+- write_sql: SQL query writing expert
+- review_legal_doc: Legal document reviewer
+
+Returns the skill's prompt and context.`,
+    schema: z.object({
+      skillName: z
+        .string()
+        .describe("Name of skill to load")
+    })
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-4o",
+  tools: [loadSkill],
+  prompt: (
+    "You are a helpful assistant. " +
+    "You have access to two skills: " +
+    "write_sql and review_legal_doc. " +
+    "Use load_skill to access them."
+  ),
+});
+```
+
+
+### Extending the pattern
+
+When writing custom implementations, you can extend the basic skills pattern in several ways:
+
+**Dynamic tool registration**: Combine progressive disclosure with state management to register new tools as skills load. For example, loading a "database_admin" skill could both add specialized context and register database-specific tools (backup, restore, migrate). This uses the same tool-and-state mechanisms used across multi-agent patterns—tools updating state to dynamically change agent capabilities.
+
+**Hierarchical skills**: Skills can define other skills in a tree structure, creating nested specializations. For instance, loading a "data_science" skill might make available sub-skills like "pandas_expert", "visualization", and "statistical_analysis". Each sub-skill can be loaded independently as needed, allowing for fine-grained progressive disclosure of domain knowledge. This hierarchical approach helps manage large knowledge bases by organizing capabilities into logical groupings that can be discovered and loaded on-demand.
+
+<Card
+    title="Tutorial: Build an agent with on-demand skill loading"
+    icon="wand-magic-sparkles"
+    href="/oss/javascript/langchain/progressive-disclosure-skills"
+    arrow cta="Learn more"
+>
+    Learn how to implement skills with progressive disclosure, where the agent loads specialized prompts and schemas on-demand rather than upfront.
+</Card>
+
+
+## Router
+
+In the **router** architecture, a routing step classifies input and directs it to specialized agents. This is useful when you have distinct **verticals**—separate knowledge domains that each require their own agent.
+
+```mermaid
+graph LR
+    A([Query]) --> B[Router]
+    B --> C[Agent A]
+    B --> D[Agent B]
+    B --> E[Agent C]
+    C --> F[Synthesize]
+    D --> F
+    E --> F
+    F --> G([Combined answer])
+```
+
+Key characteristics:
+
+* Router decomposes the query
+* One or more specialized agents are invoked in parallel
+* Results are synthesized into a coherent response
+
+Two approaches:
+* [**Stateless routers**](#stateless) address each request independently
+* [**Stateful routers**](#stateful) maintain conversation history across requests
+
+### Stateless
+
+Each request is routed independently—no memory between calls. For multi-turn conversations, see [Stateful routers](#stateful).
+
+<Tip>
+**Stateless router vs Subagents**: The [subagents pattern](#subagents) can also route to multiple agents. Use the stateless router when you need specialized preprocessing or custom routing logic. Use the subagents pattern when you want the LLM to decide which agents to call dynamically.
+</Tip>
+
+<Accordion title="Building a multi-source knowledge base router">
+
+Your organization's knowledge lives in multiple places: GitHub repositories, Notion wikis, and Slack conversations. These are three distinct verticals, each requiring specialized tools and context. When users ask questions like "How do I authenticate API requests?", the answer may require information from multiple sources. This example builds a router that decomposes queries, identifies which verticals to consult, queries them in parallel, and synthesizes results.
+
+```mermaid
+graph LR
+    A([Query]) --> B[Router]
+    B --> C[GitHub agent]
+    B --> D[Notion agent]
+    B --> E[Slack agent]
+    C --> F[Synthesize]
+    D --> F
+    E --> F
+    F --> G([Combined answer])
+```
+
+
+```typescript
+import { StateGraph, Annotation, START, END, Send } from "@langchain/langgraph";
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+
+const RouterState = Annotation.Root({
+  query: Annotation<string>(),
+  routes: Annotation<string[]>(),
+  githubResult: Annotation<string | null>(),
+  notionResult: Annotation<string | null>(),
+  slackResult: Annotation<string | null>(),
+  finalAnswer: Annotation<string>()
+});
+
+// Specialized agents for each vertical
+const githubAgent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [searchCode, searchIssues, searchPrs],
+  prompt: "You are a GitHub expert. Answer questions about code, API references, and implementation details.",
+  name: "github_agent"
+});
+
+const notionAgent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [searchNotion, getPage],
+  prompt: "You are a Notion expert. Answer questions about internal processes, policies, and team documentation.",
+  name: "notion_agent"
+});
+
+const slackAgent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [searchSlack, getThread],
+  prompt: "You are a Slack expert. Answer questions by searching relevant threads and discussions.",
+  name: "slack_agent"
+});
+
+const routerLlm = new ChatOpenAI({ model: "gpt-4o-mini" });
+
+async function decomposeQuery(state: typeof RouterState.State) {  // [!code highlight]
+  // Decompose query and determine which knowledge bases to consult  // [!code highlight]
+  const response = await routerLlm.invoke([
+    {
+      role: "system",
+      content: "Analyze this query and determine which knowledge bases to consult. Return a JSON list with one or more of: 'github', 'notion', 'slack'."
+    },
+    { role: "user", content: state.query }
+  ]);
+  // Parse LLM response to get routes (simplified for example)
+  const routes = ["github", "notion"];
+  return { routes };
+}
+
+// Route to multiple agents in parallel  // [!code highlight]
+function routeToAgents(state: typeof RouterState.State): Send[] {  // [!code highlight]
+  // Fan out to multiple agents in parallel  // [!code highlight]
+  return state.routes.map(route => new Send(route, state));  // [!code highlight]
+}
+
+async function queryGithub(state: typeof RouterState.State) {
+  const result = await githubAgent.invoke({
+    messages: [{ role: "user", content: state.query }]
+  });
+  return { githubResult: result.messages.at(-1)?.content };
+}
+
+async function queryNotion(state: typeof RouterState.State) {
+  const result = await notionAgent.invoke({
+    messages: [{ role: "user", content: state.query }]
+  });
+  return { notionResult: result.messages.at(-1)?.content };
+}
+
+async function querySlack(state: typeof RouterState.State) {
+  const result = await slackAgent.invoke({
+    messages: [{ role: "user", content: state.query }]
+  });
+  return { slackResult: result.messages.at(-1)?.content };
+}
+
+async function synthesizeResults(state: typeof RouterState.State) {  // [!code highlight]
+  // Combine results from multiple agents into a coherent answer  // [!code highlight]
+  const results: string[] = [];
+  if (state.githubResult) results.push(`GitHub: ${state.githubResult}`);
+  if (state.notionResult) results.push(`Notion: ${state.notionResult}`);
+  if (state.slackResult) results.push(`Slack: ${state.slackResult}`);
+
+  // Use LLM to synthesize
+  const synthesisResponse = await routerLlm.invoke([
+    { role: "system", content: "Synthesize these search results into a coherent answer." },
+    { role: "user", content: results.join("\n\n") }
+  ]);
+  return { finalAnswer: synthesisResponse.content };
+}
+
+// Build workflow with parallel execution
+const workflow = new StateGraph(RouterState)
+  .addNode("decompose", decomposeQuery)
+  .addNode("github", queryGithub)
+  .addNode("notion", queryNotion)
+  .addNode("slack", querySlack)
+  .addNode("synthesize", synthesizeResults)
+  .addEdge(START, "decompose")
+  .addConditionalEdges("decompose", routeToAgents, ["github", "notion", "slack"])  // [!code highlight]
+  .addEdge("github", "synthesize")
+  .addEdge("notion", "synthesize")
+  .addEdge("slack", "synthesize")
+  .addEdge("synthesize", END)
+  .compile();
+
+const result = await workflow.invoke({ query: "How do I authenticate API requests?" });
+console.log(result.finalAnswer);
+```
+
+
+</Accordion>
+
+
+### Stateful
+
+For multi-turn conversations, you need to maintain context across invocations.
+
+**The simplest approach:** wrap the stateless router as a tool that a conversational agent can call.
+
+
+```typescript
+const searchDocs = tool(
+  async ({ query }) => {
+    const result = await workflow.invoke({ query });
+    return result.finalAnswer;
+  },
+  {
+    name: "search_docs",
+    description: "Search across multiple documentation sources",
+    schema: z.object({
+      query: z.string().describe("The search query")
+    })
+  }
+);
+
+// Conversational agent uses the router as a tool
+const conversationalAgent = createAgent({
+  model,
+  tools: [searchDocs],
+  prompt: "You are a helpful assistant. Use search_docs to answer questions."
+});
+```
+
+
+The conversational agent handles memory and context; the router stays stateless. This avoids the complexity of managing conversation history across multiple parallel agents.
+
+**Alternative**: Full persistence
+
+If you need the router itself to maintain state, use [persistence](/oss/javascript/langchain/short-term-memory) to store message history. When routing to an agent, fetch previous messages from state and selectively include them in the agent's context—this is a lever for [context engineering](/oss/javascript/langchain/context-engineering).
+
+<Warning>
+**This is challenging.** Maintaining coherent history across multiple agents is difficult, especially when agents run in parallel. Agents can become confused about context or produce inconsistent responses. Synthesizing results also becomes harder—you need to track which agents have responded and how to combine partial results across turns. Consider the [state machine pattern](#state-machine) or [subagents pattern](#subagents) instead—both are simpler to reason about.
+</Warning>
+
+## Custom workflow
+
+In the **custom workflow** architecture, you define your own bespoke execution flow using LangGraph. You have complete control over the graph structure—including sequential steps, conditional branches, loops, and parallel execution.
+
+Use custom workflows when:
+- Standard patterns (subagents, skills, etc.) don't fit your requirements
+- You need to mix deterministic logic with agentic behavior
+- Your use case requires complex routing or multi-stage processing
+
+Each node in your workflow can be a simple function, an LLM call, or an entire agent with tools. You can also compose other architectures within a custom workflow—for example, embedding a multi-agent system as a single node.
+
+```mermaid
+graph LR
+    A([Input]) --> B{{Conditional}}
+    B -->|path_a| C[Deterministic step]
+    B -->|path_b| D((Agentic step))
+    C --> G([Output])
+    D --> G([Output])
+```
+
+The [router pattern](#router) is an example of a custom workflow.
+
+<Tip>
+**Calling a LangChain agent from a LangGraph node**: The main insight when mixing LangChain and LangGraph is that you can call a LangChain agent directly inside any LangGraph node. This lets you combine the flexibility of custom workflows with the convenience of pre-built agents:
+
+
+```typescript
+import { createAgent } from "langchain";
+
+const agent = createAgent({ model: "openai:gpt-4o", tools: [...] });
+
+async function agentNode(state: typeof State.State) {
+  // A LangGraph node that invokes a LangChain agent
+  const result = await agent.invoke({
+    messages: [{ role: "user", content: state.query }]
+  });
+  return { answer: result.messages.at(-1)?.content };
+}
+```
+
+</Tip>
+
+**Example: RAG pipeline** — A common use case is combining retrieval with an agent. This example builds a WNBA stats assistant that retrieves from a knowledge base and can fetch live news.
+
+<Accordion title="Custom RAG workflow">
+
+The workflow demonstrates three types of nodes:
+
+- **Model node** (Rewrite): Rewrites the user query for better retrieval using structured output.
+- **Deterministic node** (Retrieve): Performs vector similarity search — no LLM involved.
+- **Agent node** (Agent): Reasons over retrieved context and can fetch additional information via tools.
+
+```mermaid
+graph LR
+    A([Query]) --> B{{Rewrite}}
+    B --> C[(Retrieve)]
+    C --> D((Agent))
+    D --> E([Response])
+```
+
+<Tip>
+You can use LangGraph state to pass information between workflow steps. This allows each part of your workflow to read and update structured fields, making it easy to share data and context across nodes.
+</Tip>
+
+
+```typescript
+import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
+import { createAgent, tool } from "langchain";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import * as z from "zod";
+
+const State = Annotation.Root({
+  question: Annotation<string>(),
+  rewrittenQuery: Annotation<string>(),
+  documents: Annotation<string[]>(),
+  answer: Annotation<string>(),
+});
+
+// WNBA knowledge base with rosters, game results, and player stats
+const embeddings = new OpenAIEmbeddings();
+const vectorStore = await MemoryVectorStore.fromTexts(
+  [
+    // Rosters
+    "New York Liberty 2024 roster: Breanna Stewart, Sabrina Ionescu, Jonquel Jones, Courtney Vandersloot.",
+    "Las Vegas Aces 2024 roster: A'ja Wilson, Kelsey Plum, Jackie Young, Chelsea Gray.",
+    "Indiana Fever 2024 roster: Caitlin Clark, Aliyah Boston, Kelsey Mitchell, NaLyssa Smith.",
+    // Game results
+    "2024 WNBA Finals: New York Liberty defeated Minnesota Lynx 3-2 to win the championship.",
+    "June 15, 2024: Indiana Fever 85, Chicago Sky 79. Caitlin Clark had 23 points and 8 assists.",
+    "August 20, 2024: Las Vegas Aces 92, Phoenix Mercury 84. A'ja Wilson scored 35 points.",
+    // Player stats
+    "A'ja Wilson 2024 season stats: 26.9 PPG, 11.9 RPG, 2.6 BPG. Won MVP award.",
+    "Caitlin Clark 2024 rookie stats: 19.2 PPG, 8.4 APG, 5.7 RPG. Won Rookie of the Year.",
+    "Breanna Stewart 2024 stats: 20.4 PPG, 8.5 RPG, 3.5 APG.",
+  ],
+  [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+  embeddings
+);
+const retriever = vectorStore.asRetriever({ k: 5 });
+
+const getLatestNews = tool(
+  async ({ query }) => {
+    // Your news API here
+    return "Latest: The WNBA announced expanded playoff format for 2025...";
+  },
+  {
+    name: "get_latest_news",
+    description: "Get the latest WNBA news and updates",
+    schema: z.object({ query: z.string() })
+  }
+);
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [getLatestNews],
+});
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const RewrittenQuery = z.object({ query: z.string() });
+
+async function rewriteQuery(state: typeof State.State) {
+  const systemPrompt = `Rewrite this query to retrieve relevant WNBA information.
+The knowledge base contains: team rosters, game results with scores, and player statistics (PPG, RPG, APG).
+Focus on specific player names, team names, or stat categories mentioned.`;
+  const response = await model.withStructuredOutput(RewrittenQuery).invoke([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: state.question }
+  ]);
+  return { rewrittenQuery: response.query };
+}
+
+async function retrieve(state: typeof State.State) {
+  const docs = await retriever.invoke(state.rewrittenQuery);
+  return { documents: docs.map(doc => doc.pageContent) };
+}
+
+async function callAgent(state: typeof State.State) {
+  const context = state.documents.join("\n\n");
+  const prompt = `Context:\n${context}\n\nQuestion: ${state.question}`;
+  const response = await agent.invoke({ messages: [{ role: "user", content: prompt }] });
+  return { answer: response.messages.at(-1)?.contentBlocks };
+}
+
+const workflow = new StateGraph(State)
+  .addNode("rewrite", rewriteQuery)
+  .addNode("retrieve", retrieve)
+  .addNode("agent", callAgent)
+  .addEdge(START, "rewrite")
+  .addEdge("rewrite", "retrieve")
+  .addEdge("retrieve", "agent")
+  .addEdge("agent", END)
+  .compile();
+
+const result = await workflow.invoke({ question: "Who won the 2024 WNBA Championship?" });
+console.log(result.answer);
+```
+
+
+</Accordion>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/multi-agent.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
